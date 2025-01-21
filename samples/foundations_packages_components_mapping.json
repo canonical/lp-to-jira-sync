@@ -16,7 +16,7 @@
 	"OpenJDK": ["openjdk-lts", "openjdk-17", "openjdk-8", "openjdk-16", "openjdk-21"],
 	"Package Management": ["update-manager", "apt", "dpkg", "ubuntu-release-upgrader"],
 	"Python": ["python3.10", "python3.11"],
-	"Raspberry Pi": [],
+	"Raspberry Pi": ["rpi-eeprom", "raspberrypi-userland", "raspi-utils"],
 	"RISC-V": ["cd-boot-images-riscv64", "flash-kernel", "hart-software-services", "licheerv-rtl8723ds-dkms", "opensbi", "u-boot", "u-boot-nezha"],
 	"Rust": ["cargo", "dh-cargo", "rustc"],
 	"Secure Boot": ["mokutil", "shim"],
