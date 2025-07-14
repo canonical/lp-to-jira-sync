@@ -1,4 +1,4 @@
-# Launchpad to Jira sync
+# Launchpad Bugs to Jira Issues sync
 
 ## Definitions
 *LaunchPad bugs* : The bugs we are interested in here are all the bugs in
