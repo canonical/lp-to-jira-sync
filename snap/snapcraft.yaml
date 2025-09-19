@@ -1,6 +1,6 @@
 name: lp-to-jira-sync
-base: core22
-version: '0.2'
+base: core24
+version: '0.3'
 summary: CLI to asutomatically sync Launchpad Bugs with a Jira Project
 description: |
   lp-to-jira-sync allows you to sync bugs assigned to a specific group with
