@@ -81,7 +81,7 @@ def is_bug_in_jira(jira, bug_id, project_id):
     request = "project = \"{}\" AND summary ~ '\"LP#{} [{}]\"'".format(
         project_id, bug_id[0], bug_id[1])
 
-    existing_issue = jira.search_issues(request)
+    existing_issue = jira.enhanced_search_issues(request)
 
     if existing_issue:
         return existing_issue[0]
@@ -188,27 +188,20 @@ def find_bugs_in_jira_project(jira_api, project):
 
     found_issues = {}
 
-    while True:
-        start_index = issue_index * issue_batch
-        request = "project = {} " \
-            "AND type = Bug " \
-            "AND summary ~ \"LP#\" " \
-            "AND status not in (Done, \"Rejected\")""".format(project)
-        issues = jira_api.search_issues(request, startAt=start_index)
+    request = "project = {} " \
+        "AND type = Bug " \
+        "AND summary ~ \"LP#\" " \
+        "AND status not in (Done, \"Rejected\")""".format(project)
+    issues = jira_api.enhanced_search_issues(jql_str=request)
 
-        if not issues:
-            break
+    # For each issue in JIRA with LP# in the title
+    for issue in issues:
+        summary = issue.fields.summary
+        lpbug_id = get_bug_id(summary)
+        lppkg = get_bug_pkg(summary)
 
-        issue_index += 1
-
-        # For each issue in JIRA with LP# in the title
-        for issue in issues:
-            summary = issue.fields.summary
-            lpbug_id = get_bug_id(summary)
-            lppkg = get_bug_pkg(summary)
-
-            if lpbug_id:
-                found_issues[(int(lpbug_id), lppkg)] = issue
+        if lpbug_id:
+            found_issues[(int(lpbug_id), lppkg)] = issue
 
     return found_issues
 
