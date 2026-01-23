@@ -1,0 +1,68 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lp_to_jira_sync"
+version = "0.2"
+description = "A CLI to sync bug from LP to Jira"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: GNU Affero General Public License v3 (AGPLv3)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "launchpadlib",
+    "jira>=3.10.5",
+    "keyring",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/mclemenceau/lp-to-jira-sync"
+"Bug Reports" = "https://github.com/mclemenceau/lp-to-jira-sync/issues"
+"Source Code" = "https://github.com/mclemenceau/lp-to-jira-sync"
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+]
+lint = [
+    "flake8",
+]
+
+[project.scripts]
+lp-to-jira-sync = "lp_to_jira_sync.lp_to_jira_sync:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lp_to_jira_sync*"]
+
+[tool.pytest.ini_options]
+addopts = "--cov"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["lp_to_jira_sync"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "raise NotImplementedError",
+    "assert False",
+]
+
+[tool.flake8]
+max-line-length = 80
+extend-ignore = ["E203"]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "build",
+    "dist",
+]
