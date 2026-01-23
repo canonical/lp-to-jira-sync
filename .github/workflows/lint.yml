@@ -19,10 +19,5 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dependencies
-        run: |
-          pip install -e ".[lint]"
-
-      - name: Run flake8
-        run: |
-          flake8 lp_to_jira_sync tests
+      - name: Run lint
+        run: make lint
