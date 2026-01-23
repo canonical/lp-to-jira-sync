@@ -14,7 +14,7 @@ class jira_config():
                  credstore="{}/.jira.token".format(os.path.expanduser('~'))):
         snap_home = os.getenv("SNAP_USER_COMMON")
 
-        if snap_home and not credstore:
+        if snap_home:
             self.credstore = "{}/.jira.token".format(snap_home)
         else:
             self.credstore = credstore

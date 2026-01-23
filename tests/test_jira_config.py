@@ -42,6 +42,9 @@ def test_init_with_missing_token_file_without_saving(mock_open, mock_input):
 @patch('builtins.input')
 @patch('builtins.open', side_effect=[FileNotFoundError, None])
 def test_init_with_snap_home(mock_open, mock_input):
+    # Simulate initialization when SNAP_USER_COMMON is set
+    # If set the test will use the mock location and won't find the file
+    # It will then prompt for user input and will trigger the input mocks
     mock_input.side_effect = ['y',
                               'https://example.atlassian.net',
                               'test@example.com',
