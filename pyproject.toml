@@ -55,14 +55,3 @@ exclude_lines = [
     "raise NotImplementedError",
     "assert False",
 ]
-
-[tool.flake8]
-max-line-length = 80
-extend-ignore = ["E203"]
-exclude = [
-    ".git",
-    "__pycache__",
-    ".venv",
-    "build",
-    "dist",
-]
