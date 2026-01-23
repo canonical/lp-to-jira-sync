@@ -1,6 +1,4 @@
 import pytest
-import json
-from io import StringIO
 from unittest.mock import patch, MagicMock
 from lp_to_jira_sync.sync_config import SyncConfig
 
@@ -8,12 +6,11 @@ from lp_to_jira_sync.sync_config import SyncConfig
 @patch('lp_to_jira_sync.sync_config.JIRA')
 @patch('lp_to_jira_sync.sync_config.jira_config')
 def test_init_without_jira_api(mock_jira_config, mock_jira):
-    mock_jira_config = MagicMock()
     mock_jira.side_effect = ValueError("No Jira")
     with pytest.raises(ValueError) as e:
-        config = SyncConfig()
+        SyncConfig()
 
-    assert(str(e.value)) == "ERROR: Cannot initialize Jira API"
+    assert str(e.value) == "ERROR: Cannot initialize Jira API"
 
 
 @patch('lp_to_jira_sync.sync_config.Launchpad')
@@ -114,8 +111,7 @@ def test_init_with_lp_team(mock_launchpad, mock_jira_config, mock_requests):
 @patch('lp_to_jira_sync.sync_config.jira_config')
 @patch('lp_to_jira_sync.sync_config.Launchpad')
 def test_init_with_lp_team_and_json(
-    mock_launchpad, mock_jira_config, mock_requests):
-
+        mock_launchpad, mock_jira_config, mock_requests):
     mock_jira = MagicMock()
     mock_jira_config.return_value = MagicMock(jira=mock_jira)
 
@@ -166,8 +162,8 @@ def test_init_with_team_mapping(mock_launchpad,
     mock_launchpad.login_with.return_value = mock_lp
 
     team_mapping = {
-        "bob": {"name":"Bobby","id":"123456789"},
-        "ben": {"name":"Bernard","id":"987654321"}
+        "bob": {"name": "Bobby", "id": "123456789"},
+        "ben": {"name": "Bernard", "id": "987654321"}
     }
     mock_json.load.return_value = team_mapping
 
@@ -195,10 +191,10 @@ def test_init_with_team_mapping(mock_launchpad,
 @patch('lp_to_jira_sync.sync_config.open')
 @patch('lp_to_jira_sync.sync_config.Launchpad')
 @patch('lp_to_jira_sync.sync_config.jira_config')
-def test_init_with_team_mapping(mock_launchpad,
-                                mock_jira_config,
-                                mock_open,
-                                mock_json):
+def test_init_with_component_mapping(mock_launchpad,
+                                     mock_jira_config,
+                                     mock_open,
+                                     mock_json):
     mock_jira = MagicMock()
     mock_jira_config.return_value = MagicMock(jira=mock_jira)
 

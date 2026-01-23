@@ -2,7 +2,6 @@ import argparse
 
 from lp_to_jira_sync.sync_config import SyncConfig
 from jira.resources import Issue
-from typing import Any
 
 
 jira_priorities_mapping = {'Unknown': 'Medium',
@@ -15,6 +14,7 @@ jira_priorities_mapping = {'Unknown': 'Medium',
 
 Bugset = tuple[int, str]
 
+
 # Create a Jira Entry from a LP bugset (list of tasks relevant to a bug and
 # package)
 def lp_to_jira_bug(sync_bug_id, sync_bug_tasks, config):
@@ -26,7 +26,7 @@ def lp_to_jira_bug(sync_bug_id, sync_bug_tasks, config):
     lpbug = sync_bug_tasks[0].bug
 
     summary = 'LP#{} [{}] {}'.format(
-        sync_bug_id[0], sync_bug_id[1],lpbug.title)
+        sync_bug_id[0], sync_bug_id[1], lpbug.title)
 
     # Jira API doesn't accept summary over 255 characters
     # Jira API doesn't accept description over 32767 characters
@@ -182,10 +182,6 @@ def find_bugs_in_jira_project(jira_api, project):
     if not jira_api or not project:
         return {}
 
-    # Get JIRA issues in batch of 50
-    issue_index = 0
-    issue_batch = 50
-
     found_issues = {}
 
     request = "project = {} " \
@@ -220,7 +216,7 @@ def jira_priority(issue):
     return issue.fields.priority.name
 
 
-def sync(taskset, issue, config, log_msg = ""):
+def sync(taskset, issue, config, log_msg=""):
     if not taskset or not issue or not config:
         return False
 
@@ -241,7 +237,7 @@ def sync(taskset, issue, config, log_msg = ""):
     # TODO: write sync title function
     jira_title = issue.fields.summary
     new_title = jira_title[:jira_title.index(']')+2] + bug.title
-    
+
     if jira_title not in new_title:
         log("-> Syncing title for {}".format(issue.key))
         jira_comment = jira_comment + (
@@ -352,8 +348,8 @@ def sync(taskset, issue, config, log_msg = ""):
             component not in issue_components and
             component in config.jira_components
         ):
-            log("-> Updating Components for {} to {}"
-                  .format(issue.key, component))
+            log("-> Updating Components for {} to {}".format(
+                issue.key, component))
             issue.update(fields={"components": []})
             issue.update(
                 update={"components": [{"add": {"name": component, }}], }, )
@@ -365,6 +361,7 @@ def sync(taskset, issue, config, log_msg = ""):
     if jira_comment:
         config.jira.add_comment(issue, jira_comment)
 
+
 def revert_jira_status(config: SyncConfig, jira_issue: Issue, tasks: list):
     not_progressing = (t for t in tasks if t.status in (
         'New',
@@ -373,7 +370,8 @@ def revert_jira_status(config: SyncConfig, jira_issue: Issue, tasks: list):
         'Triaged'
         ))
     if not any(not_progressing):
-        print(f"Not reverting status for {jira_issue.key} since all LP task are progressing.")
+        print(f"Not reverting status for {jira_issue.key} "
+              "since all LP task are progressing.")
         return
 
     comment = (
@@ -389,7 +387,8 @@ def revert_jira_status(config: SyncConfig, jira_issue: Issue, tasks: list):
         config.jira.add_comment(jira_issue, comment)
 
 
-def process_issues(all_tasks: dict[Bugset, list], all_issues: dict[Bugset, Issue], config):
+def process_issues(all_tasks: dict[Bugset, list],
+                   all_issues: dict[Bugset, Issue], config):
     # Between All subscribed bug in LP and all bug imported in JIRA, there's
     # 3 Groups:
     #   A: bug are active in both LP and Jira
@@ -414,8 +413,8 @@ def process_issues(all_tasks: dict[Bugset, list], all_issues: dict[Bugset, Issue
     for bugset in all_tasks:
         if bugset in all_issues:
             # bug are active in both LP and Jira
-            log_msg = ("LP-Jira: LP: #{} [{}] is in Jira as {}"
-                  .format(bugset[0], bugset[1], all_issues[bugset].key))
+            log_msg = ("LP-Jira: LP: #{} [{}] is in Jira as {}".format(
+                bugset[0], bugset[1], all_issues[bugset].key))
             if not config.dry_run:
                 sync(
                     all_tasks[bugset],
@@ -425,12 +424,13 @@ def process_issues(all_tasks: dict[Bugset, list], all_issues: dict[Bugset, Issue
             del all_issues[bugset]
         else:
             # bugs only active in LP
-            log_msg = ("LP Only: LP: #{} [{}] is not active in Jira"
-                  .format(bugset[0], bugset[1]))
+            log_msg = ("LP Only: LP: #{} [{}] is not active in Jira".format(
+                bugset[0], bugset[1]))
 
             # Checking if the bug is inactive in Jira
             jira_issue = is_bug_in_jira(config.jira, bugset, config.project)
-            if jira_issue and str(jira_issue.fields.status) in ('Done', 'Rejected'):
+            jira_status = str(jira_issue.fields.status) if jira_issue else None
+            if jira_issue and jira_status in ('Done', 'Rejected'):
                 revert_jira_status(config, jira_issue, all_tasks[bugset])
             else:
                 if not config.dry_run:
