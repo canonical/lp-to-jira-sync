@@ -22,9 +22,8 @@ jobs:
           python-version: '3.12'
 
       # Install dependencies and project
-      - name: Pip Install
-        run: |
-          pip install .
+      - name: Install dependencies
+        run: make deps
 
       - name: Set up Jira API Token and Team JSON Files
         run: |
