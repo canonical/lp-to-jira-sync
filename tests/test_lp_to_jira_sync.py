@@ -67,6 +67,20 @@ def test_is_lp_bug_complete_all_final():
     assert result is True
 
 
+def test_is_lp_bug_complete_with_expired_and_opinion():
+    """Test that Expired and Opinion statuses are recognized as final"""
+    config = MagicMock()
+    mock_bug = MagicMock()
+    task1 = MagicMock(status="Expired")
+    task2 = MagicMock(status="Opinion")
+    task3 = MagicMock(status="Fix Released")
+    mock_bug.bug_tasks = [task1, task2, task3]
+    config.lp.bugs = {12345: mock_bug}
+
+    result = is_lp_bug_complete(config, 12345)
+    assert result is True
+
+
 def test_is_lp_bug_complete_some_active():
     """Test that a bug with some active tasks is not complete"""
     config = MagicMock()
@@ -110,11 +124,11 @@ def test_is_lp_bug_complete_bug_not_found():
 
 
 def test_is_lp_bug_complete_no_tasks():
-    """Test that a bug with no tasks is considered complete"""
+    """Test that a bug with no tasks returns None (status uncertain)"""
     config = MagicMock()
     mock_bug = MagicMock()
     mock_bug.bug_tasks = []
     config.lp.bugs = {12345: mock_bug}
 
     result = is_lp_bug_complete(config, 12345)
-    assert result is True
+    assert result is None

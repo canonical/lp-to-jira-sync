@@ -410,8 +410,8 @@ def is_lp_bug_complete(config, bug_id):
         bug_tasks = list(lp_bug.bug_tasks)
 
         if not bug_tasks:
-            # If no tasks, consider it complete
-            return True
+            # If no tasks, we cannot determine status - return None
+            return None
 
         # Check if all tasks are in a final status
         final_statuses = ['Fix Released', 'Invalid', "Won't Fix",
@@ -424,8 +424,12 @@ def is_lp_bug_complete(config, bug_id):
 
         # All tasks are in final status
         return True
-    except Exception:
-        # If we can't access the bug, return None to indicate uncertainty
+    except KeyError:
+        # Bug not found in Launchpad
+        return None
+    except Exception as e:
+        # Log the error and return None to indicate uncertainty
+        print(f"Error accessing LP bug #{bug_id}: {e}")
         return None
 
 
@@ -505,7 +509,7 @@ def process_issues(all_tasks: dict[Bugset, list],
                 'complete. Closing the Jira issue.').format(
                 bug_id, pkg_name, jira_issue.key))
             comment = (
-                '{{lp-to-jira-sync}} LP: #%s is complete in LaunchPad '
+                '{{lp-to-jira-sync}} LP: #%s is complete in Launchpad '
                 '(all tasks are in final status). '
                 'Moving issue to Done.') % bug_id
             if not config.dry_run:
