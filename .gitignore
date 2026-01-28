@@ -9,5 +9,9 @@ __pycache__/
 # Ignore pip artefacts
 *.egg-info/
 
+# Ignore virtual environments
+.venv/
+venv/
+
 # ignore VSCode
 .vscode
