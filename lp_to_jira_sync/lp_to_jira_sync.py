@@ -387,6 +387,52 @@ def revert_jira_status(config: SyncConfig, jira_issue: Issue, tasks: list):
         config.jira.add_comment(jira_issue, comment)
 
 
+def is_lp_bug_complete(config, bug_id):
+    """
+    Check if a Launchpad bug is in a final/completed status.
+
+    A bug is considered complete if ALL its tasks are in a final status:
+    - Fix Released
+    - Invalid
+    - Won't Fix
+    - Expired
+    - Opinion
+
+    Returns:
+        True if all tasks are complete, False if any task is active,
+        None if the bug cannot be found or accessed
+    """
+    try:
+        # Get the bug from Launchpad
+        lp_bug = config.lp.bugs[bug_id]
+
+        # Get all bug tasks for this bug
+        bug_tasks = list(lp_bug.bug_tasks)
+
+        if not bug_tasks:
+            # If no tasks, we cannot determine status - return None
+            return None
+
+        # Check if all tasks are in a final status
+        final_statuses = ['Fix Released', 'Invalid', "Won't Fix",
+                          'Expired', 'Opinion']
+
+        for task in bug_tasks:
+            if task.status not in final_statuses:
+                # Found an active task, bug is not complete
+                return False
+
+        # All tasks are in final status
+        return True
+    except KeyError:
+        # Bug not found in Launchpad
+        return None
+    except Exception as e:
+        # Log the error and return None to indicate uncertainty
+        print(f"Error accessing LP bug #{bug_id}: {e}")
+        return None
+
+
 def process_issues(all_tasks: dict[Bugset, list],
                    all_issues: dict[Bugset, Issue], config):
     # Between All subscribed bug in LP and all bug imported in JIRA, there's
@@ -447,18 +493,41 @@ def process_issues(all_tasks: dict[Bugset, list],
                     log_msg)
 
     for issue in all_issues:
-        # bugs only active in Jira
-        print((
-                'Jira Only: LP: #{} [{}] is in Jira as {} but not tagged or '
-                'active in LP').format(
-            issue[0], issue[1],  all_issues[issue].key))
-        comment = (
-            '{{lp-to-jira-sync}} LP: #%s is either not tagged %s or active at '
-            'this time. Moving issue to Done. If this is incorrect, check the '
-            'status of the bug in LaunchPad.') % (issue[0], config.tag)
-        if not config.dry_run:
-            config.jira.transition_issue(all_issues[issue], transition="Done")
-            config.jira.add_comment(all_issues[issue], comment)
+        # bugs only active in Jira (Group C)
+        # Only close bug if the LP bug is actually in a final status
+        bug_id = issue[0]
+        pkg_name = issue[1]
+        jira_issue = all_issues[issue]
+
+        # Check if the Launchpad bug is complete
+        lp_bug_complete = is_lp_bug_complete(config, bug_id)
+
+        if lp_bug_complete is True:
+            # The bug exists in LP and all tasks are complete
+            print((
+                'Jira Only: LP: #{} [{}] is in Jira as {} and the LP bug is '
+                'complete. Closing the Jira issue.').format(
+                bug_id, pkg_name, jira_issue.key))
+            comment = (
+                '{{lp-to-jira-sync}} LP: #%s is complete in Launchpad '
+                '(all tasks are in final status). '
+                'Moving issue to Done.') % bug_id
+            if not config.dry_run:
+                config.jira.transition_issue(jira_issue, transition="Done")
+                config.jira.add_comment(jira_issue, comment)
+        elif lp_bug_complete is False:
+            # The bug exists in LP but is still active
+            print((
+                'Jira Only: LP: #{} [{}] is in Jira as {} but is still '
+                'active in LP (not tagged {}). '
+                'Not closing automatically.').format(
+                bug_id, pkg_name, jira_issue.key, config.tag))
+        else:
+            # Could not access the bug in LP (might not exist or API error)
+            print((
+                'Jira Only: LP: #{} [{}] is in Jira as {} but could not '
+                'verify LP bug status. Not closing automatically.').format(
+                bug_id, pkg_name, jira_issue.key))
 
 
 def main(args=None):

@@ -1,7 +1,7 @@
 #####################################################################
 from unittest.mock import MagicMock
 from lp_to_jira_sync.lp_to_jira_sync import (
-    get_bug_id, get_bug_pkg, revert_jira_status
+    get_bug_id, get_bug_pkg, revert_jira_status, is_lp_bug_complete
 )
 
 
@@ -51,3 +51,84 @@ def test_revert_bug_reopened():
 
     revert_jira_status(config, issue, tasks)
     config.jira.transition_issue.assert_called_with(issue, transition='Triaged')
+
+
+def test_is_lp_bug_complete_all_final():
+    """Test that a bug with all tasks in final status is complete"""
+    config = MagicMock()
+    mock_bug = MagicMock()
+    task1 = MagicMock(status="Fix Released")
+    task2 = MagicMock(status="Invalid")
+    task3 = MagicMock(status="Won't Fix")
+    mock_bug.bug_tasks = [task1, task2, task3]
+    config.lp.bugs = {12345: mock_bug}
+
+    result = is_lp_bug_complete(config, 12345)
+    assert result is True
+
+
+def test_is_lp_bug_complete_with_expired_and_opinion():
+    """Test that Expired and Opinion statuses are recognized as final"""
+    config = MagicMock()
+    mock_bug = MagicMock()
+    task1 = MagicMock(status="Expired")
+    task2 = MagicMock(status="Opinion")
+    task3 = MagicMock(status="Fix Released")
+    mock_bug.bug_tasks = [task1, task2, task3]
+    config.lp.bugs = {12345: mock_bug}
+
+    result = is_lp_bug_complete(config, 12345)
+    assert result is True
+
+
+def test_is_lp_bug_complete_some_active():
+    """Test that a bug with some active tasks is not complete"""
+    config = MagicMock()
+    mock_bug = MagicMock()
+    task1 = MagicMock(status="Fix Released")
+    task2 = MagicMock(status="In Progress")
+    task3 = MagicMock(status="Won't Fix")
+    mock_bug.bug_tasks = [task1, task2, task3]
+    config.lp.bugs = {12345: mock_bug}
+
+    result = is_lp_bug_complete(config, 12345)
+    assert result is False
+
+
+def test_is_lp_bug_complete_all_active():
+    """Test that a bug with all tasks active is not complete"""
+    config = MagicMock()
+    mock_bug = MagicMock()
+    task1 = MagicMock(status="New")
+    task2 = MagicMock(status="In Progress")
+    task3 = MagicMock(status="Triaged")
+    mock_bug.bug_tasks = [task1, task2, task3]
+    config.lp.bugs = {12345: mock_bug}
+
+    result = is_lp_bug_complete(config, 12345)
+    assert result is False
+
+
+def test_is_lp_bug_complete_bug_not_found():
+    """Test that a bug that cannot be found returns None"""
+    config = MagicMock()
+
+    # Mock the bugs dictionary to raise an exception when accessed
+    def raise_keyerror(key):
+        raise KeyError("Bug not found")
+
+    config.lp.bugs.__getitem__ = MagicMock(side_effect=raise_keyerror)
+
+    result = is_lp_bug_complete(config, 99999)
+    assert result is None
+
+
+def test_is_lp_bug_complete_no_tasks():
+    """Test that a bug with no tasks returns None (status uncertain)"""
+    config = MagicMock()
+    mock_bug = MagicMock()
+    mock_bug.bug_tasks = []
+    config.lp.bugs = {12345: mock_bug}
+
+    result = is_lp_bug_complete(config, 12345)
+    assert result is None
