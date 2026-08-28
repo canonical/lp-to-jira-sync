@@ -465,7 +465,7 @@ def process_issues(all_tasks: dict[Bugset, list],
         bug_id, pkg_name = issue[0], issue[1]
         jira_issue = all_issues[issue]
         bug = None
-        if hasattr(config, 'lp') and config.lp is not None:
+        if config.lp is not None:
             try:
                 bug = config.lp.bugs[bug_id]
             except Exception:
