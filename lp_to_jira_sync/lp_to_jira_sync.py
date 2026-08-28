@@ -242,6 +242,19 @@ def sync(taskset, issue, config, log_msg=""):
         )
         issue.update(summary=new_title[:255])
 
+    # Description
+    # Only backfill the description if Jira currently has none.
+    # We never overwrite an existing description to avoid clobbering
+    # any manual edits made directly in Jira.
+    jira_description = issue.fields.description
+    if not jira_description and bug.description:
+        log("-> Backfilling description for {}".format(issue.key))
+        issue.update(description=bug.description[:32767])
+        jira_comment = jira_comment + (
+            ('{{lp-to-jira-sync}} Backfilled missing description '
+             'from LP: #%s\n') % (bug.id)
+        )
+
     # Status
     # At this stage at a minimum the issue should be in Triaged but other
     # status could be possible in the future Sponsoring Needed could be

@@ -2,7 +2,7 @@
 from unittest.mock import MagicMock
 from lp_to_jira_sync.lp_to_jira_sync import (
     get_bug_id, get_bug_pkg, revert_jira_status, refine_tasks,
-    incomplete_reason, process_issues
+    incomplete_reason, process_issues, sync
 )
 
 
@@ -146,3 +146,103 @@ def test_jira_only_close_comment_includes_specific_reason():
     assert "all LP tasks marked complete" in comment
     assert "not tagged or active in LP" not in comment
     assert config.jira.transition_issue.called
+
+
+# ---------------------------------------------------------------------------
+# Description backfill tests
+# ---------------------------------------------------------------------------
+
+def _make_sync_issue(description=None, status="Triaged",
+                     priority="Low", assignee=None, components=None):
+    """Build a minimal Jira issue mock for sync() tests."""
+    issue = MagicMock()
+    issue.key = "FR-9999"
+    issue.fields.description = description
+    issue.fields.status.name = status
+    issue.fields.priority.name = priority
+    issue.fields.assignee = assignee
+    issue.fields.components = components or []
+    issue.fields.customfield_10039 = None
+    return issue
+
+
+def _make_sync_task(lp_description="A bug description", importance="Low"):
+    task = MagicMock()
+    task.bug.id = 123
+    task.bug.description = lp_description
+    task.bug.title = "A bug title"
+    task.title = "Bug #123 in pkg (Ubuntu): A bug title"
+    task.bug_target_name = "pkg (Ubuntu)"
+    task.status = "New"
+    task.importance = importance
+    task.is_complete = False
+    task.assignee_link = None
+    return task
+
+
+def _make_sync_config():
+    config = MagicMock()
+    config.team_ids = {}
+    config.jira_components = []
+    config.dry_run = False
+    return config
+
+
+def test_sync_backfills_description_when_jira_has_none():
+    """Description must be written when Jira description is null."""
+    issue = _make_sync_issue(description=None)
+    task = _make_sync_task(lp_description="This is the LP description.")
+    config = _make_sync_config()
+
+    sync([task], issue, config)
+
+    issue.update.assert_any_call(
+        description="This is the LP description."
+    )
+
+
+def test_sync_does_not_overwrite_existing_description():
+    """An existing Jira description must never be overwritten."""
+    existing = "Manually written Jira description."
+    issue = _make_sync_issue(description=existing)
+    task = _make_sync_task(lp_description="A different LP description.")
+    config = _make_sync_config()
+
+    sync([task], issue, config)
+
+    # description= must not appear in any update() call
+    for call in issue.update.call_args_list:
+        args, kwargs = call
+        assert "description" not in kwargs, (
+            "update() must not be called with description= when one exists"
+        )
+
+
+def test_sync_skips_backfill_when_lp_description_is_empty():
+    """No update should happen if both Jira and LP descriptions are empty."""
+    issue = _make_sync_issue(description=None)
+    task = _make_sync_task(lp_description="")
+    config = _make_sync_config()
+
+    sync([task], issue, config)
+
+    for call in issue.update.call_args_list:
+        _, kwargs = call
+        assert "description" not in kwargs
+
+
+def test_sync_truncates_long_description():
+    """Description longer than 32767 chars must be truncated."""
+    long_desc = "x" * 40000
+    issue = _make_sync_issue(description=None)
+    task = _make_sync_task(lp_description=long_desc)
+    config = _make_sync_config()
+
+    sync([task], issue, config)
+
+    for call in issue.update.call_args_list:
+        _, kwargs = call
+        if "description" in kwargs:
+            assert len(kwargs["description"]) <= 32767
+            return
+    assert False, "Expected update(description=...) to be called"
