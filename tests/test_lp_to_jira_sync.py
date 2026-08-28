@@ -246,3 +246,93 @@ def test_sync_truncates_long_description():
             assert len(kwargs["description"]) <= 32767
             return
     assert False, "Expected update(description=...) to be called"
+
+
+# ---------------------------------------------------------------------------
+# Dry-run tests for sync()
+# ---------------------------------------------------------------------------
+
+def _make_dry_run_config():
+    config = _make_sync_config()
+    config.dry_run = True
+    return config
+
+
+def _no_writes(issue):
+    """Assert that issue.update() was never called."""
+    issue.update.assert_not_called()
+
+
+def test_dry_run_does_not_write_description():
+    """In dry-run mode, a missing description must NOT be written to Jira."""
+    issue = _make_sync_issue(description=None)
+    task = _make_sync_task(lp_description="The LP description.")
+    config = _make_dry_run_config()
+
+    sync([task], issue, config)
+
+    for call in issue.update.call_args_list:
+        _, kwargs = call
+        assert "description" not in kwargs, (
+            "dry-run must not call update(description=...)"
+        )
+    config.jira.add_comment.assert_not_called()
+
+
+def test_dry_run_does_not_write_title():
+    """In dry-run mode, an out-of-sync title must NOT be written to Jira."""
+    issue = _make_sync_issue()
+    # Give the issue a stale title
+    issue.fields.summary = "LP#123 [pkg] Old title"
+    task = _make_sync_task()
+    task.bug.title = "New title"
+    config = _make_dry_run_config()
+
+    sync([task], issue, config)
+
+    for call in issue.update.call_args_list:
+        _, kwargs = call
+        assert "summary" not in kwargs, (
+            "dry-run must not call update(summary=...)"
+        )
+    config.jira.add_comment.assert_not_called()
+
+
+def test_dry_run_does_not_write_priority():
+    """In dry-run mode, a priority mismatch must NOT be written to Jira."""
+    issue = _make_sync_issue(priority="Low")
+    task = _make_sync_task(importance="Critical")
+    config = _make_dry_run_config()
+
+    sync([task], issue, config)
+
+    for call in issue.update.call_args_list:
+        _, kwargs = call
+        assert "priority" not in kwargs, (
+            "dry-run must not call update(priority=...)"
+        )
+    config.jira.add_comment.assert_not_called()
+
+
+def test_dry_run_does_not_transition_status():
+    """In dry-run mode, Untriaged status must NOT be transitioned."""
+    issue = _make_sync_issue(status="Untriaged")
+    task = _make_sync_task()
+    config = _make_dry_run_config()
+
+    sync([task], issue, config)
+
+    config.jira.transition_issue.assert_not_called()
+    config.jira.add_comment.assert_not_called()
+
+
+def test_dry_run_does_not_add_comment():
+    """In dry-run mode, no comment must be posted even when changes are found."""
+    issue = _make_sync_issue(description=None, status="Untriaged",
+                             priority="Low")
+    task = _make_sync_task(lp_description="desc", importance="High")
+    config = _make_dry_run_config()
+
+    sync([task], issue, config)
+
+    config.jira.add_comment.assert_not_called()

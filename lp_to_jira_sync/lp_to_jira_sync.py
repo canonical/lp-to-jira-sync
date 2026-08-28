@@ -219,6 +219,7 @@ def sync(taskset, issue, config, log_msg=""):
     bug = taskset[0].bug
     jira_comment = ""
     synced = False
+    dry_run = config.dry_run
 
     def log(msg):
         nonlocal synced
@@ -235,12 +236,14 @@ def sync(taskset, issue, config, log_msg=""):
     new_title = jira_title[:jira_title.index(']')+2] + bug.title
 
     if jira_title not in new_title:
-        log("-> Syncing title for {}".format(issue.key))
+        log("-> {}Syncing title for {}".format(
+            "[dry-run] " if dry_run else "", issue.key))
         jira_comment = jira_comment + (
             ('{{lp-to-jira-sync}} Fixed out of sync title with LP: #%s\n')
             % (bug.id)
         )
-        issue.update(summary=new_title[:255])
+        if not dry_run:
+            issue.update(summary=new_title[:255])
 
     # Description
     # Only backfill the description if Jira currently has none.
@@ -248,12 +251,14 @@ def sync(taskset, issue, config, log_msg=""):
     # any manual edits made directly in Jira.
     jira_description = issue.fields.description
     if not jira_description and bug.description:
-        log("-> Backfilling description for {}".format(issue.key))
-        issue.update(description=bug.description[:32767])
+        log("-> {}Backfilling description for {}".format(
+            "[dry-run] " if dry_run else "", issue.key))
         jira_comment = jira_comment + (
             ('{{lp-to-jira-sync}} Backfilled missing description '
              'from LP: #%s\n') % (bug.id)
         )
+        if not dry_run:
+            issue.update(description=bug.description[:32767])
 
     # Status
     # At this stage at a minimum the issue should be in Triaged but other
@@ -275,21 +280,24 @@ def sync(taskset, issue, config, log_msg=""):
                  'to the bug which means it should move to Sponsoring '
                  'Needed')
             )
-            config.jira.transition_issue(
-                issue,
-                transition='Sponsoring Needed'
-            )
+            if not dry_run:
+                config.jira.transition_issue(
+                    issue,
+                    transition='Sponsoring Needed'
+                )
 
     # sync Status
     if issue.fields.status.name == 'Untriaged':
-        log("-> Updating Status for {} to Triaged".format(issue.key))
+        log("-> {}Updating Status for {} to Triaged".format(
+            "[dry-run] " if dry_run else "", issue.key))
         jira_comment = jira_comment + (
            ('{{lp-to-jira-sync}} %s should be Triaged\n') % (config.tag)
         )
-        config.jira.transition_issue(
-            issue,
-            transition='Triaged'
-        )
+        if not dry_run:
+            config.jira.transition_issue(
+                issue,
+                transition='Triaged'
+            )
 
     # Sync Checklist
     # If a bug impact a package on multiple serie, we create a Checklist on the
@@ -297,12 +305,14 @@ def sync(taskset, issue, config, log_msg=""):
     checkstr = checklist(taskset)
     jiracheckstr = issue.fields.customfield_10039
     if checkstr and checkstr != jiracheckstr:
-        log("-> Updating Checklist for {}".format(issue.key))
-        issue.update(fields={'customfield_10039': checkstr})
+        log("-> {}Updating Checklist for {}".format(
+            "[dry-run] " if dry_run else "", issue.key))
         jira_comment = jira_comment + (
             ('{{lp-to-jira-sync}} Updating Checklist according to LP: #%s\n')
             % (bug.id)
         )
+        if not dry_run:
+            issue.update(fields={'customfield_10039': checkstr})
 
     # Assignee
     # If a team mapping has been provided we can look at for a match between
@@ -316,28 +326,31 @@ def sync(taskset, issue, config, log_msg=""):
             # But nobody is assigned in Jira
             # In that case we assign the bug the same person from LP
             if not jira_who:
-                account = config.team_ids[lp_who]['id']
-                issue.update(assignee={'id': account})
-                log("-> Updating assignee for {} to {}".format(
+                log("-> {}Updating assignee for {} to {}".format(
+                    "[dry-run] " if dry_run else "",
                     issue.key,
                     config.team_ids[lp_who]['name']))
                 jira_comment = jira_comment + (
                     ('{{lp-to-jira-sync}} Updating Assignee according to '
                      'LP: #%s\n') % (bug.id)
                 )
+                if not dry_run:
+                    account = config.team_ids[lp_who]['id']
+                    issue.update(assignee={'id': account})
 
     # Importance
     # We should reflect the launchpad bug Priority with the Jira issue priority
     importance = jira_priorities_mapping[lp_importance(taskset)]
     priority = jira_priority(issue)
     if importance != priority:
-        log("-> Syncing Priority for {} to {}".format(
-            issue.key, importance))
-        issue.update(priority={"name": importance})
+        log("-> {}Syncing Priority for {} to {}".format(
+            "[dry-run] " if dry_run else "", issue.key, importance))
         jira_comment = jira_comment + (
             ('{{lp-to-jira-sync}} Updating Priority according to LP: #%s\n')
             % (bug.id)
         )
+        if not dry_run:
+            issue.update(priority={"name": importance})
 
     # Sync Jira Component with Package in Launchpad if mapping available
     if config.jira_components:
@@ -357,17 +370,20 @@ def sync(taskset, issue, config, log_msg=""):
             component not in issue_components and
             component in config.jira_components
         ):
-            log("-> Updating Components for {} to {}".format(
-                issue.key, component))
-            issue.update(fields={"components": []})
-            issue.update(
-                update={"components": [{"add": {"name": component, }}], }, )
+            log("-> {}Updating Components for {} to {}".format(
+                "[dry-run] " if dry_run else "", issue.key, component))
             jira_comment = jira_comment + (
                 ('{{lp-to-jira-sync}} Updating Component according to '
                  'LP: #%s\n') % (bug.id)
             )
+            if not dry_run:
+                issue.update(fields={"components": []})
+                issue.update(
+                    update={
+                        "components": [{"add": {"name": component, }}],
+                    })
 
-    if jira_comment:
+    if jira_comment and not dry_run:
         config.jira.add_comment(issue, jira_comment)
 
 
@@ -442,12 +458,11 @@ def process_issues(all_tasks: dict[Bugset, list],
             # bug are active in both LP and Jira
             log_msg = ("LP-Jira: LP: #{} [{}] is in Jira as {}".format(
                 bugset[0], bugset[1], all_issues[bugset].key))
-            if not config.dry_run:
-                sync(
-                    all_tasks[bugset],
-                    all_issues[bugset],
-                    config,
-                    log_msg)
+            sync(
+                all_tasks[bugset],
+                all_issues[bugset],
+                config,
+                log_msg)
             del all_issues[bugset]
         else:
             # bugs only active in LP
@@ -463,10 +478,11 @@ def process_issues(all_tasks: dict[Bugset, list],
                 if not config.dry_run:
                     jira_issue = lp_to_jira_bug(
                                     bugset, all_tasks[bugset], config)
-                else:
-                    pass
 
-            if not config.dry_run:
+            # sync() can only run if we have an issue to sync against.
+            # In dry-run mode, Group B bugs without an existing Jira issue
+            # have no issue object yet (creation was skipped), so skip sync.
+            if jira_issue:
                 sync(
                     all_tasks[bugset],
                     jira_issue,
