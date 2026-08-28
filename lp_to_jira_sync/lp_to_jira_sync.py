@@ -152,17 +152,13 @@ def refine_tasks(tasks, config):
 
         # Create the taskset identifier
         pair = (int(title[1][1:]), name)
-        if pair not in results:
-            results[pair] = []
 
         # If package is in Ubuntu and belong to the relevant team
         if ("(Ubuntu" in task.bug_target_name
                 and name in config.restricted_pkgs):
-            results[pair].append(task)
+            results.setdefault(pair, []).append(task)
         elif name in config.special_packages:
-            results[pair].append(task)
-        else:
-            del results[pair]
+            results.setdefault(pair, []).append(task)
 
     # remove bugtasks where all the task are Fix Released
     results_copy = results.copy()
@@ -362,6 +358,24 @@ def sync(taskset, issue, config, log_msg=""):
         config.jira.add_comment(issue, jira_comment)
 
 
+def incomplete_reason(bug, tag):
+    """Explain why a Jira-linked bug is not eligible for LP sync."""
+    if bug is None:
+        return "bug not accessible in Launchpad"
+    if tag not in [t for t in getattr(bug, "tags", [])]:
+        return "missing tag '%s'" % tag
+    tasks = getattr(bug, "bug_tasks", []) or []
+    eligible = [
+        t for t in tasks
+        if "(Ubuntu" in getattr(t, "bug_target_name", "")
+    ]
+    if not eligible:
+        return "no eligible LP task (not an Ubuntu package task)"
+    if tasks and all(getattr(t, "is_complete", False) for t in eligible):
+        return "all LP tasks marked complete"
+    return "no eligible active LP task"
+
+
 def revert_jira_status(config: SyncConfig, jira_issue: Issue, tasks: list):
     not_progressing = (t for t in tasks if t.status in (
         'New',
@@ -448,14 +462,25 @@ def process_issues(all_tasks: dict[Bugset, list],
 
     for issue in all_issues:
         # bugs only active in Jira
+        bug_id, pkg_name = issue[0], issue[1]
+        jira_issue = all_issues[issue]
+        bug = None
+        if hasattr(config, 'lp') and config.lp is not None:
+            try:
+                bug = config.lp.bugs[bug_id]
+            except Exception:
+                bug = None
+        reason = incomplete_reason(bug, config.tag)
+
         print((
-                'Jira Only: LP: #{} [{}] is in Jira as {} but not tagged or '
-                'active in LP').format(
-            issue[0], issue[1],  all_issues[issue].key))
+            'Jira Only: LP: #{} [{}] is in Jira as {} '
+            'but not active in LP ({})').format(
+                bug_id, pkg_name, jira_issue.key, reason))
         comment = (
-            '{{lp-to-jira-sync}} LP: #%s is either not tagged %s or active at '
-            'this time. Moving issue to Done. If this is incorrect, check the '
-            'status of the bug in LaunchPad.') % (issue[0], config.tag)
+            '{{lp-to-jira-sync}} LP: #%s is no longer active in '
+            'Launchpad: %s. Moving issue to Done. If this is incorrect, '
+            'check the status of the bug in Launchpad.') % (
+                bug_id, reason)
         if not config.dry_run:
             config.jira.transition_issue(all_issues[issue], transition="Done")
             config.jira.add_comment(all_issues[issue], comment)
