@@ -327,7 +327,8 @@ def test_dry_run_does_not_transition_status():
 
 
 def test_dry_run_does_not_add_comment():
-    """In dry-run mode, no comment must be posted even when changes are found."""
+    """In dry-run mode, no comment must be posted even when changes are
+    found."""
     issue = _make_sync_issue(description=None, status="Untriaged",
                              priority="Low")
     task = _make_sync_task(lp_description="desc", importance="High")
@@ -335,4 +336,28 @@ def test_dry_run_does_not_add_comment():
 
     sync([task], issue, config)
 
+    config.jira.add_comment.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Back-reference tag guard tests
+# ---------------------------------------------------------------------------
+
+def test_group_c_skips_close_when_lp_bug_has_back_reference_tag():
+    """Group C must not auto-close a Jira issue whose LP bug carries a
+    back-reference tag pointing at that exact issue key."""
+    config = MagicMock(tag="foundations-todo", dry_run=False)
+    config.project = "FR"
+
+    jira_issue = MagicMock()
+    jira_issue.key = "FR-14478"
+    all_issues = {(2166541, "ccls"): jira_issue}
+
+    lp_bug = MagicMock()
+    lp_bug.tags = ["foundations-todo", "fr-14478"]
+    config.lp.bugs.__getitem__.return_value = lp_bug
+
+    process_issues({}, all_issues, config)
+
+    config.jira.transition_issue.assert_not_called()
     config.jira.add_comment.assert_not_called()

@@ -499,6 +499,17 @@ def process_issues(all_tasks: dict[Bugset, list],
                 bug = config.lp.bugs[bug_id]
             except Exception:
                 bug = None
+
+        # If the LP bug has a Jira back-reference tag (e.g. 'fr-14478',
+        # added by the old lp-to-jira tool), it is managed outside of
+        # this sync. Do not auto-close it.
+        if bug is not None and jira_issue.key.lower() in list(
+                getattr(bug, "tags", [])):
+            print(("Jira Only: LP: #{} [{}] is in Jira as {} and has a "
+                   "back-reference tag - skipping auto-close.").format(
+                       bug_id, pkg_name, jira_issue.key))
+            continue
+
         reason = incomplete_reason(bug, config.tag)
 
         print((
